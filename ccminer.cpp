@@ -251,9 +251,11 @@ Options:\n\
 			dmd-gr      Diamond-Groestl\n\
 			fresh       Freshcoin (shavite 80)\n\
 			fugue256    Fuguecoin\n\
-			groestl     Groestlcoin\n\
-			heavy       Heavycoin\n\
-			hmq1725     Doubloons / Espers\n\
+			groestl     Groestlcoin\n"
+#ifdef WITH_HEAVY_ALGO
+"			heavy       Heavycoin\n"
+#endif
+"			hmq1725     Doubloons / Espers\n\
 			jackpot     JHA v8\n\
 			keccak      Deprecated Keccak-256\n\
 			keccakc     Keccak-256 (CreativeCoin)\n\
@@ -262,7 +264,6 @@ Options:\n\
 			lyra2       CryptoCoin\n\
 			lyra2v2     VertCoin\n\
 			lyra2z      ZeroCoin (3rd impl)\n\
-			mjollnir    Mjollnircoin\n\
 			myr-gr      Myriad-Groestl\n\
 			neoscrypt   FeatherCoin, Phoenix, UFO...\n\
 			nist5       NIST5 (TalkCoin)\n\
@@ -304,8 +305,6 @@ Options:\n\
       --cuda-schedule   Set device threads scheduling mode (default: auto)\n\
   -f, --diff-factor     Divide difficulty by this factor (default 1.0) \n\
   -m, --diff-multiplier Multiply difficulty by this value (default 1.0) \n\
-      --vote=VOTE       vote (for decred and HeavyCoin)\n\
-      --trust-pool      trust the max block reward vote (maxvote) sent by the pool\n\
   -o, --url=URL         URL of mining server\n\
   -O, --userpass=U:P    username:password pair for mining server\n\
   -u, --user=USERNAME   username for mining server\n\
@@ -1023,7 +1022,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 			applog(LOG_DEBUG, "share diff: %.5f (x %.1f)",
 				stratum.sharediff, work->shareratio[idnonce]);
 
-		if (opt_vote) { // ALGO_HEAVY ALGO_DECRED
+		if (opt_vote) { // ALGO_HEAVY
 			nvotestr = bin2hex((const uchar*)(&nvote), 2);
 			sprintf(s, "{\"method\": \"mining.submit\", \"params\": ["
 					"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":%u}",
@@ -1555,10 +1554,12 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		case ALGO_SIA:
 			// getwork over stratum, no merkle to generate
 			break;
+#ifdef WITH_HEAVY_ALGO
 		case ALGO_HEAVY:
 		case ALGO_MJOLLNIR:
 			heavycoin_hash(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
 			break;
+#endif
 		case ALGO_FUGUE256:
 		case ALGO_GROESTL:
 		case ALGO_KECCAK:
@@ -1573,9 +1574,11 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 
 	for (i = 0; i < sctx->job.merkle_count; i++) {
 		memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
+#ifdef WITH_HEAVY_ALGO
 		if (opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR)
 			heavycoin_hash(merkle_root, merkle_root, 64);
 		else
+#endif
 			sha256d(merkle_root, merkle_root, 64);
 	}
 	
@@ -2339,8 +2342,6 @@ static void *miner_thread(void *userdata)
 			rc = scanhash_cryptonight(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_DECRED:
-			//applog(LOG_BLUE, "version %x, nbits %x, ntime %x extra %x",
-			//	work.data[0], work.data[29], work.data[34], work.data[38]);
 			rc = scanhash_decred(thr_id, &work, max_nonce, &hashes_done);
 			break;
 		case ALGO_DEEP:
@@ -2370,14 +2371,14 @@ static void *miner_thread(void *userdata)
 		case ALGO_HSR:
 			rc = scanhash_hsr(thr_id, &work, max_nonce, &hashes_done);
 			break;
-
+#ifdef WITH_HEAVY_ALGO
 		case ALGO_HEAVY:
 			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
 			break;
 		case ALGO_MJOLLNIR:
 			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
 			break;
-
+#endif
 		case ALGO_KECCAK:
 		case ALGO_KECCAKC:
 			rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
